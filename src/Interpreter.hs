@@ -40,6 +40,8 @@ infixl 4 \+
 (\+) :: Expr -> Expr -> Expr
 (\+) = Add
 
+lets :: [(String, Expr)] -> Expr -> Expr
+lets bindings body = foldr (uncurry Let) body bindings
 
 newtype Interpreter a = Interpreter { runInterpreter :: ReaderT Env (ExceptT String IO) a}
     deriving
@@ -58,7 +60,7 @@ execInterpreter =
     >>> flip runReaderT (Env mempty (VBuiltinFun $ \v -> throwError ("Unhandled effect: "++show v)))
     >>> runExceptT
 
-data Value = VInt Int | VUnit | VLambda (Map String Value) String Expr | VBuiltinFun (Value -> Interpreter Value)
+data Value = VInt Int | VUnit | VLambda (Map String Value) (Maybe Value) String Expr | VBuiltinFun (Value -> Interpreter Value)
 
 instance Show Value where
     show = \case
@@ -89,15 +91,21 @@ printValue = liftIO . print
 app :: Value -> Expr -> Interpreter Value
 app vf ex = case vf of
     VBuiltinFun f -> f =<< evalExpr ex
-    VLambda vs x body -> do
+    VLambda vs h x body -> do
         vx <- evalExpr ex
-        local (vars .~ Map.insert x vx vs) (evalExpr body)
+        local (vars .~ Map.insert x vx vs >>> maybe id (handler .~) h) (evalExpr body)
     _ -> throwError "applied non-function"
 
 mkLambda :: String -> Expr -> Interpreter Value
 mkLambda x body = do
     closure <- asks (^.vars)
-    return $ VLambda closure x body
+    return $ VLambda closure Nothing x body
+
+mkHandler :: String -> Expr -> Interpreter Value
+mkHandler x body = do
+    closure <- asks (^.vars)
+    h <- asks (^.handler)
+    return $ VLambda closure (Just h) x body
 
 evalExpr :: Expr -> Interpreter Value
 evalExpr = \case
@@ -107,12 +115,8 @@ evalExpr = \case
     Print e -> (printValue =<< evalExpr e) $> VUnit
     Seq l r -> evalExpr l >> evalExpr r
     App ef ex -> do
-        evalExpr ef >>= \case
-            VBuiltinFun f -> f =<< evalExpr ex
-            VLambda vs x body -> do
-                vx <- evalExpr ex
-                local (vars .~ Map.insert x vx vs) (evalExpr body)
-            _ -> throwError "applied non-function"
+        vf <- evalExpr ef
+        app vf ex
     Perform eff -> do
         h <- asks (^.handler)
         app h eff
@@ -138,7 +142,7 @@ evalExpr = \case
         withVar x vrhs (evalExpr body)
     Lambda x body -> mkLambda x body
     TryHandle thrower e h -> do
-        h' <- mkLambda e h
+        h' <- mkHandler e h
         withHandler h' (evalExpr thrower)
 
 runEvalExpr :: Expr -> IO (Either String Value)
