@@ -1,2 +1,13 @@
 cradle:
   stack:
+    - path: "./src"
+      component: "ContEffects:lib"
+
+    - path: "./app/Main.hs"
+      component: "ContEffects:exe:ContEffects-exe"
+
+    - path: "./app/Paths_ContEffects.hs"
+      component: "ContEffects:exe:ContEffects-exe"
+
+    - path: "./test"
+      component: "ContEffects:test:ContEffects-test"

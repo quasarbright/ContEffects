@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 64b65a5ea7f9e15a292e67aec64700335ff4727e5cde63eb5e44c11c6694dd77
+-- hash: c22417e4f4678e119ffec41f38547701833fc1d76c623db1db6fe1d73a80f5bb
 
 name:           ContEffects
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
   hs-source-dirs:
       src
   default-extensions: LambdaCase RecordWildCards GeneralizedNewtypeDeriving TupleSections MonadComprehensions MultiWayIf
+  ghc-options: -w -Wall
   build-depends:
       base >=4.7 && <5
     , containers
@@ -51,7 +52,7 @@ executable ContEffects-exe
   hs-source-dirs:
       app
   default-extensions: LambdaCase RecordWildCards GeneralizedNewtypeDeriving TupleSections MonadComprehensions MultiWayIf
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -w -Wall
+  ghc-options: -w -Wall -threaded -rtsopts -with-rtsopts=-N -w -Wall
   build-depends:
       ContEffects
     , base >=4.7 && <5
@@ -71,7 +72,7 @@ test-suite ContEffects-test
   hs-source-dirs:
       test
   default-extensions: LambdaCase RecordWildCards GeneralizedNewtypeDeriving TupleSections MonadComprehensions MultiWayIf
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -w -Wall
+  ghc-options: -w -Wall -threaded -rtsopts -with-rtsopts=-N -w -Wall
   build-depends:
       ContEffects
     , HUnit

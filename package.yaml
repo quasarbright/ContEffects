@@ -28,6 +28,11 @@ dependencies:
 - transformers
 - lens
 
+ghc-options:
+- -w
+- -Wall
+
+
 library:
   source-dirs: src
   default-extensions:

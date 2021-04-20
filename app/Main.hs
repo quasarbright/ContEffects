@@ -1,6 +1,7 @@
 module Main where
 
 import Interpreter
+    ( (\>>), runEvalExpr, Expr(Var, TryHandle, Unit, Print, Perform) )
 
 -- prog :: Expr
 -- prog = TryHandle (Perform Unit) "x" (Print (Var "x") \>> Perform (Var "x"))
@@ -9,4 +10,4 @@ prog :: Expr
 prog = TryHandle (Perform Unit) "x" (Print (Var "x") \>> Perform (Var "x"))
 
 main :: IO ()
-main = print =<< runEvalExpr prog
+main = print $ runEvalExpr prog

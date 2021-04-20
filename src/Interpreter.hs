@@ -3,11 +3,11 @@ module Interpreter where
 
 import Data.Map(Map)
 import qualified Data.Map as Map
-import Control.Monad.Reader
-    ( MonadIO(..), MonadReader(local, ask), ReaderT(..), asks )
+import Control.Monad.RWS.Strict
+    ( MonadReader(local), RWST(..), asks, MonadWriter (tell) )
 import Control.Monad.Except
     ( MonadError(throwError), ExceptT, runExceptT )
-import Control.Monad.Identity ()
+import Control.Monad.Identity (Identity (runIdentity))
 import Control.Lens ( (%~), makeLenses, (^.), (&), (.~) )
 import Control.Arrow ((>>>))
 import Data.Functor (($>))
@@ -27,23 +27,34 @@ data Expr
     | Print Expr
     | Seq Expr Expr
 
-infixr 1 \>>
+infixr 1 \-> 
+(\->) :: String -> Expr -> Expr
+(\->) = Lambda
+infixr 2 \>>
 (\>>) :: Expr -> Expr -> Expr
 (\>>) = Seq
-infixr 2 \$
+infixr 3 \$
 (\$) :: Expr -> Expr -> Expr
 (\$) = App
-infix 3 \==
+infix 6 \==
 (\==) :: Expr -> Expr -> Expr
 (\==) = Eq
-infixl 4 \+
+infixl 7 \+
 (\+) :: Expr -> Expr -> Expr
 (\+) = Add
 
 lets :: [(String, Expr)] -> Expr -> Expr
 lets bindings body = foldr (uncurry Let) body bindings
 
-newtype Interpreter a = Interpreter { runInterpreter :: ReaderT Env (ExceptT String IO) a}
+newtype Interpreter a = Interpreter
+    { getInterpreter :: 
+        ExceptT String
+        (
+        RWST Env [Value] () 
+        Identity
+        )
+        a
+    }
     deriving
         (
             Functor,
@@ -51,14 +62,22 @@ newtype Interpreter a = Interpreter { runInterpreter :: ReaderT Env (ExceptT Str
             Monad,
             MonadReader Env,
             MonadError String,
-            MonadIO
+            MonadWriter [Value]
         )
 
-execInterpreter :: Interpreter a -> IO (Either String a)
-execInterpreter =
-    runInterpreter
-    >>> flip runReaderT (Env mempty (VBuiltinFun $ \v -> throwError ("Unhandled effect: "++show v)))
+defaultHandler :: Value
+defaultHandler = VBuiltinFun $ \v -> throwError ("Unhandled effect: " ++ show v)
+
+runInterpreter :: Interpreter a -> (Either String a, [Value])
+runInterpreter =
+    getInterpreter
     >>> runExceptT
+    >>> (\m -> runRWST m (Env mempty defaultHandler) ())
+    >>> fmap (\(a,_,w) -> (a,w))
+    >>> runIdentity
+
+execInterpreter :: Interpreter a -> Either String a
+execInterpreter = runInterpreter >>> fst
 
 data Value = VInt Int | VUnit | VLambda (Map String Value) (Maybe Value) String Expr | VBuiltinFun (Value -> Interpreter Value)
 
@@ -68,6 +87,14 @@ instance Show Value where
         VLambda{} -> "<lambda>"
         VBuiltinFun{} -> "<builtin>"
         VUnit -> "()"
+
+instance Eq Value where
+    VInt l == VInt r = l == r
+    VInt{} == _ = False
+    VUnit == VUnit = True
+    VUnit == _ = False
+    VLambda{} == _ = False
+    VBuiltinFun{} == _ = False
 
 data Env = Env { _vars :: Map String Value, _handler :: Value }
 
@@ -86,7 +113,7 @@ withHandler :: Value -> Interpreter a -> Interpreter a
 withHandler h = local (handler .~ h)
 
 printValue :: Value -> Interpreter ()
-printValue = liftIO . print
+printValue = tell . pure
 
 app :: Value -> Expr -> Interpreter Value
 app vf ex = case vf of
@@ -145,5 +172,5 @@ evalExpr = \case
         h' <- mkHandler e h
         withHandler h' (evalExpr thrower)
 
-runEvalExpr :: Expr -> IO (Either String Value)
+runEvalExpr :: Expr -> Either String Value
 runEvalExpr = evalExpr >>> execInterpreter
