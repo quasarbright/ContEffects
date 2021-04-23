@@ -79,6 +79,7 @@ runInterpreter =
 execInterpreter :: Interpreter a -> Either String a
 execInterpreter = runInterpreter >>> fst
 
+-- For VLambda, normal lambdas have Nothing for the value, and handler lambdas have Just their parent handler
 data Value = VInt Int | VUnit | VLambda (Map String Value) (Maybe Value) String Expr | VBuiltinFun (Value -> Interpreter Value)
 
 instance Show Value where
@@ -120,6 +121,7 @@ app vf ex = case vf of
     VBuiltinFun f -> f =<< evalExpr ex
     VLambda vs h x body -> do
         vx <- evalExpr ex
+        -- If we're applying a handler lambda, run the body using its parent. Otherwise, don't change the handler
         local (vars .~ Map.insert x vx vs >>> maybe id (handler .~) h) (evalExpr body)
     _ -> throwError "applied non-function"
 
